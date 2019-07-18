@@ -85,6 +85,7 @@ LCD_TEXT_DISPLAY_t myLCD = {
 	1		// LCD Hintergrundbeleuchtung (0=Aus, 1=Ein)
 	};
 
+static volatile zb_int8_t sensor_period_in_sec = 8;
 
 static void data_indication(zb_uint8_t param) ZB_CALLBACK;
 static void init_elements(void);
@@ -122,7 +123,7 @@ static void send_new_period(zb_uint8_t param)
   	user_info_param *user_data;
   	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info_param));
   	user_data->device_address = 1; //изменить на адрес девайса
-	user_data->parameter = 16;
+	user_data->parameter = sensor_period_in_sec;
 	zb_send_new_period(ZB_REF_FROM_BUF(buf));
 }
 

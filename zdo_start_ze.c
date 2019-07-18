@@ -83,7 +83,6 @@ PURPOSE: Test for ZC application written using ZDO.
 static volatile zb_uint8_t is_data_valid = 0;
 static volatile	zb_int16_t humidity_multiplied_by_ten = 0;
 static volatile zb_int16_t temperature_multiplied_by_ten = 0;
-static volatile timer_period_in_sec = 8;
 
 static void init_all(void);
 static void send_data_from_sensors(zb_uint8_t param);
@@ -94,12 +93,6 @@ void TIM2_IRQHandler(void)
    if(TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
    {  
 		ZB_SCHEDULE_CALLBACK(send_data_from_sensors, 0);
-
-		//if (timer_period_in_sec * 2000 == )
-		//{
-			//TIM2->PSC = timer_period_in_sec * 2000;
-    		//TIM2->EGR = TIM_EGR_UG;
-		//}
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
     }
 }
@@ -135,7 +128,7 @@ static void init_all(void)
 {
 	initDHT22();
 	init_leds_on_stm();
-	init_TIM2(42000, 4000);	
+	init_TIM2(42000, 32000);	
 }
 
 static void send_data_from_sensors(zb_uint8_t param) 
@@ -226,7 +219,7 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 	ZB_APS_HDR_CUT_P(asdu, ptr);
 	zb_int8_t *command_data = ptr;
 
-	if ((int)ZB_BUF_LEN(asdu) > 0)
+	if (ZB_BUF_LEN(asdu) > 0)
 	{
 		switch (*command_data){
 			case SEND_PACKAGE:
@@ -234,9 +227,11 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 				break;
 			case CHANGE_SENDING_PERIOD:
 				{
-					TIM2->PSC = *(command_data + 1) * 2000;
-    				TIM2->EGR = TIM_EGR_UG;
-				//sprintf(first_str, "Res not ready"); 
+					if (ZB_BUF_LEN(asdu) > 1)
+					{
+						TIM2->PSC = *(command_data + 1) * 2000;
+    					TIM2->EGR = TIM_EGR_UG;
+					}
 				}
 				break;
 		}	
