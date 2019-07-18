@@ -81,15 +81,47 @@ PURPOSE: Test for ZC application written using ZDO.
 #define ZB_TEST_DATA_SIZE 6
 
 static volatile zb_uint8_t is_data_valid = 0;
-static volatile	zb_uint16_t humidity_multiplied_by_ten = 0;
+static volatile	zb_int16_t humidity_multiplied_by_ten = 0;
 static volatile zb_int16_t temperature_multiplied_by_ten = 0;
-
-//static void send_data(zb_buf_t *buf);
-//void data_indication(zb_uint8_t param) ZB_CALLBACK;
-//zb_ret_t dummy_d(zb_uint8_t param) ZB_CALLBACK;
 
 static void start_dht22(void);
 static void init_all(void);
+static void send_data_from_sensors(zb_uint8_t param);
+static void data_indication(zb_uint8_t param) ZB_CALLBACK;
+
+void TIM2_IRQHandler(void)
+{
+   if(TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
+   {  
+		ZB_SCHEDULE_CALLBACK(send_data_from_sensors, 0);
+		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+    }
+}
+
+static void initTIM2(int period, int prescaler)
+{
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+
+	TIM_TimeBaseInitTypeDef tim_struct = {0};
+	tim_struct.TIM_Period = period - 1;
+	tim_struct.TIM_Prescaler = prescaler - 1;
+	tim_struct.TIM_ClockDivision = 0;
+	tim_struct.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE); 
+	TIM_TimeBaseInit(TIM2, &tim_struct);
+	TIM_Cmd(TIM2, ENABLE);
+}
+
+static void addInterruptTIM2(void)
+{
+	NVIC_InitTypeDef nvic_struct = {0};
+	nvic_struct.NVIC_IRQChannel= TIM2_IRQn;
+	nvic_struct.NVIC_IRQChannelPreemptionPriority= 0;
+	nvic_struct.NVIC_IRQChannelSubPriority= 1;
+	nvic_struct.NVIC_IRQChannelCmd= ENABLE;
+	NVIC_Init(&nvic_struct);
+}
+
 
 static void start_dht22(void)
 {
@@ -112,14 +144,12 @@ static void start_dht22(void)
 	delay_ms(80);
 	}
 			
-	//zb_uint8_t tmp;
-	//tmp = 0;
-	float h;
-	float t;
+	float h = 0;
+	float t = 0;
 	zb_uint8_t dhtRes;
 	dhtRes = getDHT22Data(GPIOA,GPIO_Pin_5,&h,&t);
 	is_data_valid = dhtRes;
-	humidity_multiplied_by_ten = (zb_uint16_t)ceil(h*10);
+	humidity_multiplied_by_ten = (zb_int16_t)ceil(h*10);
 	temperature_multiplied_by_ten = (zb_int16_t)ceil(t*10);
 			
 	GPIO_ResetBits(GPIOD, GPIO_Pin_12 | GPIO_Pin_13| GPIO_Pin_14| GPIO_Pin_15);
@@ -135,29 +165,6 @@ static void start_dht22(void)
 	if (dhtRes == dht22Res_not_valid_crc){
 		GPIO_SetBits(GPIOD, GPIO_Pin_12);
 	}
-
-				/*uint8_t test;
-				test = 0;
-
-				if (tmp){
-					GPIO_SetBits(GPIOD, GPIO_Pin_13);
-					tmp = 1 - tmp;
-				}else{
-					GPIO_ResetBits(GPIOD, GPIO_Pin_13);
-					tmp = 1 - tmp;
-				}
-
-
-				test = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_5);
-				if (test){
-					GPIO_SetBits(GPIOD, GPIO_Pin_12);
-					GPIO_ResetBits(GPIOD, GPIO_Pin_14);
-				}else{
-					GPIO_SetBits(GPIOD, GPIO_Pin_14);
-					GPIO_ResetBits(GPIOD, GPIO_Pin_12);
-				}
-
-				//delay_ms(500);*/
 			
 }
 
@@ -165,8 +172,7 @@ static void init_all(void)
 {
 	initDHT22();
 	initLedsDHT22StateIndication();
-	init_buttons();
-	init_buttons_interractions();	
+	initTIM2(16000, 42000);	
 }
 
 static void send_data_from_sensors(zb_uint8_t param) 
@@ -176,6 +182,14 @@ static void send_data_from_sensors(zb_uint8_t param)
 		ZB_GET_OUT_BUF_DELAYED(send_data_from_sensors);
         return;
   	}
+	float h = 0;
+	float t = 0;
+	zb_uint8_t dhtRes;
+	dhtRes = getDHT22Data(GPIOA,GPIO_Pin_5,&h,&t);
+	is_data_valid = dhtRes;
+	humidity_multiplied_by_ten = (zb_int16_t)ceil(h*10);
+	temperature_multiplied_by_ten = (zb_int16_t)ceil(t*10);
+
   	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
   	meteo_info *user_data;
   	user_data = ZB_GET_BUF_TAIL(buf, sizeof(meteo_info));
@@ -184,29 +198,12 @@ static void send_data_from_sensors(zb_uint8_t param)
   	user_data->humidity_multiplied_by_ten = humidity_multiplied_by_ten;
   	user_data->temperature_multiplied_by_ten = temperature_multiplied_by_ten;
 
+	/*user_data->is_data_valid = dhtRes;
+  	user_data->humidity_multiplied_by_ten = humidity_multiplied_by_ten;
+  	user_data->temperature_multiplied_by_ten = temperature_multiplied_by_ten;*/
+
 	zb_send_data_from_sensors(ZB_REF_FROM_BUF(buf));
 }
-
-
-void EXTI0_IRQHandler(void) 
-{
-	if(EXTI_GetITStatus(EXTI_Line0)!= RESET)
-        {
-			ZB_SCHEDULE_ALARM_CANCEL(send_data_from_sensors, 0);
-	 		ZB_SCHEDULE_ALARM(send_data_from_sensors, 0, 0.1 * ZB_TIME_ONE_SECOND);
-            EXTI_ClearITPendingBit(EXTI_Line0);
-        }
-}
-
-/*void EXTI1_IRQHandler(void) 
-{
-	if(EXTI_GetITStatus(EXTI_Line1)!= RESET)
-        {
-			ZB_SCHEDULE_ALARM_CANCEL(send_data_from_sensors, 0);
-	 		ZB_SCHEDULE_ALARM(send_data_from_sensors, 0, 0.1 * ZB_TIME_ONE_SECOND);
-            EXTI_ClearITPendingBit(EXTI_Line1);
-        }
-}*/
 
 /*
   ZE joins to ZC(ZR), then sends APS packet.
@@ -219,6 +216,7 @@ MAIN()
   ARGV_UNUSED;
   init_all();
   start_dht22();
+  addInterruptTIM2();
 
 #ifndef KEIL
   if ( argc < 3 )
@@ -258,12 +256,35 @@ void zb_zdo_startup_complete(zb_uint8_t param) ZB_CALLBACK
   if (buf->u.hdr.status == 0)
   {
     TRACE_MSG(TRACE_APS1, "Device STARTED OK", (FMT__0));
+	zb_af_set_data_indication(data_indication);
   }
   else
   {
     TRACE_MSG(TRACE_ERROR, "Device started FAILED status %d", (FMT__D, (int)buf->u.hdr.status));
     zb_free_buf(buf);
   }
+}
+
+void data_indication(zb_uint8_t param) ZB_CALLBACK
+{
+	char *ptr;
+	zb_buf_t *asdu = (zb_buf_t *)ZB_BUF_FROM_REF(param);
+
+	ZB_APS_HDR_CUT_P(asdu, ptr);
+	simple_cp *command_data = (simple_cp *)ptr;
+
+	if ((int)ZB_BUF_LEN(asdu) > 0)
+	{
+		switch (command_data->command_code){
+			case SEND_PACKAGE:
+				ZB_SCHEDULE_CALLBACK(send_data_from_sensors, 0);
+				break;
+			case CHANGE_SENDING_PERIOD:
+				//sprintf(first_str, "Res not ready"); 
+				break;
+		}	
+	}
+	zb_free_buf(asdu);
 }
 
 

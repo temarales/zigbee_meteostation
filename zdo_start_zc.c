@@ -53,6 +53,7 @@ PURPOSE: Test for ZC application written using ZDO.
 #include "zb_aps.h"
 #include "zb_zdo.h"
 
+#include "leds.h"
 #include "command_system.h"
 #include "stm32_ub_lcd_text_i2c.h"
 #include "stm32f4xx.h"
@@ -87,20 +88,37 @@ LCD_TEXT_DISPLAY_t myLCD = {
 
 static void data_indication(zb_uint8_t param) ZB_CALLBACK;
 static void init_elements(void);
+static void send_package_request(zb_uint8_t param);
 
-const uint8_t mes[] = "STM32F4 + I2C + LCD";
+void EXTI0_IRQHandler(void) 
+{
+	if(EXTI_GetITStatus(EXTI_Line0)!= RESET)
+        {
+			ZB_SCHEDULE_ALARM_CANCEL(send_package_request, 0);
+	 		ZB_SCHEDULE_ALARM(send_package_request, 0, 0.1 * ZB_TIME_ONE_SECOND);
+            EXTI_ClearITPendingBit(EXTI_Line0);
+        }
+}
+
+static void send_package_request(zb_uint8_t param) 
+{
+	if (param==0)
+  	{
+		ZB_GET_OUT_BUF_DELAYED(send_package_request);
+        return;
+  	}
+  	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+  	user_info *user_data;
+  	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info));
+  	user_data->device_address = 1; //изменить на адрес девайса
+	zb_send_package_request(ZB_REF_FROM_BUF(buf));
+}
 
 static void init_elements()
 {
-  /*LCD_TEXT_DISPLAY_t myLCD = { 
-	TI2C3,	// I2C Modul (1=I2C1, 2=I2C2 oder 3=I2C3)
-	0x7E,		// I2C Adresse des LCD Displays. Falls unbekannt dann auf 0 setzen und PortScan laufen lassen.
-	16,		// Anzahl Zeichen je Zeile
-	2, 		// Anzahl Zeilen
-	1		// LCD Hintergrundbeleuchtung (0=Aus, 1=Ein)
-	};*/
-
 	SystemInit();
+	init_buttons();
+	init_buttons_interractions();
 
 	// Init der I2C1-Schnittstelle
 	UB_I2C_Init(&myLCD);
@@ -118,10 +136,6 @@ static void init_elements()
 	// Clear
 	//UB_LCD_TEXT_I2C_Clear(&myLCD);
 	//UB_LCD_TEXT_I2C_Delay(2000);
-
-	//while(1)
-	//{
-	//}
 }
 
 
@@ -191,16 +205,30 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 	ZB_APS_HDR_CUT_P(asdu, ptr);
 	humidity_temperature_pack *data = (humidity_temperature_pack *)ptr;
 
-	if ((int)ZB_BUF_LEN(asdu) > 0)
+	if ((int)ZB_BUF_LEN(asdu) >= sizeof(humidity_temperature_pack))
 	{
-		UB_LCD_TEXT_I2C_String(&myLCD,0,0,"                ");
 		char first_str[16];
-		sprintf(first_str, "%hi %hi %hi", data->is_data_valid, data->humidity_multiplied_by_ten, data->temperature_multiplied_by_ten); 
-		UB_LCD_TEXT_I2C_String(&myLCD,0,0,first_str);
-		/*if (*data == 0)
-			UB_LCD_TEXT_I2C_String(&myLCD,0,0,"Sensor is OK    ");
-		else 
-			UB_LCD_TEXT_I2C_String(&myLCD,0,0,"Smth is wrong   ");*/
+		char second_str[16];
+		UB_LCD_TEXT_I2C_Delay(1000);
+		UB_LCD_TEXT_I2C_String(&myLCD,0,1,"                ");
+		UB_LCD_TEXT_I2C_Delay(1000);
+		sprintf(second_str, "Packet received ");
+		UB_LCD_TEXT_I2C_String(&myLCD,0,1,second_str);
+		switch (data->is_data_valid){
+			case RES_NO_ERROR:
+				sprintf(first_str, "H=%hi.%hi  t=%hi.%hiC    ", data->humidity_multiplied_by_ten/10, data->humidity_multiplied_by_ten % 10, data->temperature_multiplied_by_ten / 10, data->temperature_multiplied_by_ten % 10); 
+				break;
+			case RES_NOT_READY:
+				sprintf(first_str, "Res not ready"); 
+				break;
+			case RES_DATA_NOT_RECEIVED:
+				sprintf(first_str, "Data not received"); 
+				break;
+			case RES_NOT_VALID_CRC:
+				sprintf(first_str, "Res not valid"); 
+				break;
+		}
+		UB_LCD_TEXT_I2C_String(&myLCD, 0, 0, first_str);
 		
 	}
 	zb_free_buf(asdu);
