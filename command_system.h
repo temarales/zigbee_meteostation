@@ -10,27 +10,37 @@
 #include "zb_secur.h"
 #include "zb_secur_api.h"
 
-typedef struct simple_command_package{
-	zb_int8_t command_code;
-} simple_cp;
-
-
 typedef struct info_from_user {
 	zb_int8_t device_address;
 } user_info;
 
-typedef struct humidity_temperature_package{
-	zb_uint8_t is_data_valid;
-	zb_int16_t humidity_multiplied_by_ten;
-    zb_int16_t temperature_multiplied_by_ten;
-} humidity_temperature_pack;
+typedef struct info_from_user_param {
+	zb_int8_t device_address;
+	zb_int8_t parameter;
+} user_info_param;
 
 typedef struct info_from_device {
 	zb_int8_t device_address;
 	zb_uint8_t is_data_valid;
 	zb_int16_t humidity_multiplied_by_ten;
     zb_int16_t temperature_multiplied_by_ten;
-} meteo_info;
+} meteo_user_info;
+
+typedef struct simple_command_package{
+	zb_int8_t command_code;
+} simple_cp;
+
+typedef struct params_command_package{
+	zb_int8_t command_code;
+	zb_int8_t parameter;
+} param_cp;
+
+typedef struct humidity_temperature_package{
+	zb_uint8_t is_data_valid;
+	zb_int16_t humidity_multiplied_by_ten;
+    zb_int16_t temperature_multiplied_by_ten;
+} humidity_temperature_dp;
+
 
 enum sensors_state{
 	RES_NO_ERROR, 

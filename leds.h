@@ -38,4 +38,10 @@ void init_leds_AF_TIM1(void);
 /// \param[in] level Level of brightness from 0 to 1.
 void set_brightness(double level);
 
+void init_leds_on_stm(void);
+
+void add_interrupt_TIM2(void);
+
+void init_TIM2(int period, int prescaler);
+
 #endif

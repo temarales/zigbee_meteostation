@@ -167,3 +167,41 @@ void start_TIM1(void)
 	TIM_Cmd(TIM1, ENABLE);
 	TIM_CtrlPWMOutputs(TIM1, ENABLE);
 }
+
+void init_TIM2(int period, int prescaler)
+{
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+
+	TIM_TimeBaseInitTypeDef tim_struct = {0};
+	tim_struct.TIM_Period = period - 1;
+	tim_struct.TIM_Prescaler = prescaler - 1;
+	tim_struct.TIM_ClockDivision = 0;
+	tim_struct.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE); 
+	TIM_TimeBaseInit(TIM2, &tim_struct);
+	TIM_Cmd(TIM2, ENABLE);
+}
+
+void add_interrupt_TIM2(void)
+{
+	NVIC_InitTypeDef nvic_struct = {0};
+	nvic_struct.NVIC_IRQChannel= TIM2_IRQn;
+	nvic_struct.NVIC_IRQChannelPreemptionPriority= 0;
+	nvic_struct.NVIC_IRQChannelSubPriority= 1;
+	nvic_struct.NVIC_IRQChannelCmd= ENABLE;
+	NVIC_Init(&nvic_struct);
+}
+
+void init_leds_on_stm(void)
+{
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
+
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13| GPIO_Pin_14| GPIO_Pin_15;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init(GPIOD, &GPIO_InitStructure);
+}
