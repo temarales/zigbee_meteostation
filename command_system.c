@@ -67,9 +67,3 @@ void zb_send_new_period(zb_uint8_t param) ZB_CALLBACK
 {
 	zb_send_command_with_param(param, CHANGE_SENDING_PERIOD);
 }
-
-
-/*void zb_send_data_from_sensors(zb_uint8_t param) ZB_CALLBACK
-{
-	zb_send_data(param);
-}*/

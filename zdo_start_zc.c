@@ -95,21 +95,21 @@ static void send_new_period(zb_uint8_t param);
 void EXTI0_IRQHandler(void) 
 {
 	if(EXTI_GetITStatus(EXTI_Line0)!= RESET)
-        {
-			ZB_SCHEDULE_ALARM_CANCEL(send_package_request, 0);
-	 		ZB_SCHEDULE_ALARM(send_package_request, 0, 0.1 * ZB_TIME_ONE_SECOND);
-            EXTI_ClearITPendingBit(EXTI_Line0);
-        }
+	{
+		ZB_SCHEDULE_ALARM_CANCEL(send_package_request, 0);
+		ZB_SCHEDULE_ALARM(send_package_request, 0, 0.1 * ZB_TIME_ONE_SECOND);
+		EXTI_ClearITPendingBit(EXTI_Line0);
+	}
 }
 
 void EXTI1_IRQHandler(void) 
 {
 	if(EXTI_GetITStatus(EXTI_Line1)!= RESET)
-        {
-			ZB_SCHEDULE_ALARM_CANCEL(send_new_period, 0);
-	 		ZB_SCHEDULE_ALARM(send_new_period, 0, 0.1 * ZB_TIME_ONE_SECOND);
-            EXTI_ClearITPendingBit(EXTI_Line1);
-        }
+	{
+		ZB_SCHEDULE_ALARM_CANCEL(send_new_period, 0);
+		ZB_SCHEDULE_ALARM(send_new_period, 0, 0.1 * ZB_TIME_ONE_SECOND);
+		EXTI_ClearITPendingBit(EXTI_Line1);
+	}
 }
 
 static void send_new_period(zb_uint8_t param)
@@ -119,10 +119,10 @@ static void send_new_period(zb_uint8_t param)
 		ZB_GET_OUT_BUF_DELAYED(send_new_period);
         return;
   	}
-  	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  	user_info_param *user_data;
-  	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info_param));
-  	user_data->device_address = 1; //изменить на адрес девайса
+	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+	user_info_param *user_data;
+	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info_param));
+	user_data->device_address = 1; //изменить на адрес девайса
 	user_data->parameter = sensor_period_in_sec;
 	zb_send_new_period(ZB_REF_FROM_BUF(buf));
 }
@@ -130,14 +130,14 @@ static void send_new_period(zb_uint8_t param)
 static void send_package_request(zb_uint8_t param) 
 {
 	if (param==0)
-  	{
+	{
 		ZB_GET_OUT_BUF_DELAYED(send_package_request);
-        return;
-  	}
-  	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  	user_info *user_data;
-  	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info));
-  	user_data->device_address = 1; //изменить на адрес девайса
+		return;
+	}
+	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+	user_info *user_data;
+	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info));
+	user_data->device_address = 1; //изменить на адрес девайса
 	zb_send_package_request(ZB_REF_FROM_BUF(buf));
 }
 
@@ -232,13 +232,13 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 	ZB_APS_HDR_CUT_P(asdu, ptr);
 	humidity_temperature_dp *data = (humidity_temperature_dp *)ptr;
 
-	if ((int)ZB_BUF_LEN(asdu) >= sizeof(humidity_temperature_dp))
+	if (ZB_BUF_LEN(asdu) >= sizeof(humidity_temperature_dp))
 	{
 		char first_str[16];
 		char second_str[16];
-		UB_LCD_TEXT_I2C_Delay(1000);
+		UB_LCD_TEXT_I2C_Delay(1000); //переделать
 		UB_LCD_TEXT_I2C_String(&myLCD,0,1,"                ");
-		UB_LCD_TEXT_I2C_Delay(1000);
+		UB_LCD_TEXT_I2C_Delay(1000); //переделать
 		sprintf(second_str, "Packet received ");
 		UB_LCD_TEXT_I2C_String(&myLCD,0,1,second_str);
 		switch (data->is_data_valid){
@@ -256,7 +256,6 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 				break;
 		}
 		UB_LCD_TEXT_I2C_String(&myLCD, 0, 0, first_str);
-		
 	}
 	zb_free_buf(asdu);
 }

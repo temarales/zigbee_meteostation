@@ -26,16 +26,16 @@ typedef struct info_from_device {
     zb_int16_t temperature_multiplied_by_ten;
 } meteo_user_info;
 
-typedef struct simple_command_package{
+typedef struct __attribute__((__packed__)) simple_command_package{
 	zb_int8_t command_code;
 } simple_cp;
 
-typedef struct params_command_package{
+typedef struct __attribute__((__packed__)) params_command_package{
 	zb_int8_t command_code;
 	zb_int8_t parameter;
 } param_cp;
 
-typedef struct humidity_temperature_package{
+typedef struct __attribute__((__packed__)) humidity_temperature_package{
 	zb_uint8_t is_data_valid;
 	zb_int16_t humidity_multiplied_by_ten;
     zb_int16_t temperature_multiplied_by_ten;
