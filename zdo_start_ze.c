@@ -66,7 +66,7 @@ PURPOSE: Test for ZC application written using ZDO.
 static volatile zb_uint8_t is_data_valid = 0;
 static volatile	zb_int16_t humidity_multiplied_by_ten = 0;
 static volatile zb_int16_t temperature_multiplied_by_ten = 0;
-static volatile zb_int8_t period_in_sec = 3;
+static volatile zb_int8_t period_in_sec = 30;
 
 static void init_all(void);
 static void send_data_from_sensors(zb_uint8_t param);
@@ -74,6 +74,8 @@ static void send_data_from_sensors_periodically(zb_uint8_t param);
 static void data_indication(zb_uint8_t param) ZB_CALLBACK;
 static void get_dht22_data_with_indication(zb_uint8_t *is_data_valid_l, zb_int16_t *humidity_multiplied_by_ten_l, zb_int16_t *temperature_multiplied_by_ten_l);
 
+void zb_bind_request(zb_uint8_t param);
+void zb_bind_callback(zb_uint8_t param);
 
 static void get_dht22_data_with_indication(zb_uint8_t *is_data_valid_l, zb_int16_t *humidity_multiplied_by_ten_l, zb_int16_t *temperature_multiplied_by_ten_l)
 {			
@@ -183,6 +185,7 @@ void zb_zdo_startup_complete(zb_uint8_t param) ZB_CALLBACK
 	{
 		TRACE_MSG(TRACE_APS1, "Device STARTED OK", (FMT__0));
 		zb_af_set_data_indication(data_indication);
+		//ZB_SCHEDULE_CALLBACK(zb_bind_request, 1);
 		ZB_SCHEDULE_ALARM(send_data_from_sensors_periodically, 1, 4 * ZB_TIME_ONE_SECOND);
 	
 	}
@@ -213,6 +216,46 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 		}
 	}
 	zb_free_buf(asdu);
+}
+
+void zb_bind_request(zb_uint8_t param)
+{
+	zb_buf_t *buf = (zb_buf_t *)ZB_BUF_FROM_REF(param);
+	zb_zdo_bind_req_param_t *req;
+
+	req = ZB_GET_BUF_PARAM(buf, zb_zdo_bind_req_param_t);
+	ZB_MEMCPY(&req->src_address, &g_ieee_addr, sizeof(zb_ieee_addr_t));
+	req->src_endp = 10;
+	req->dst_addr_mode = ZB_APS_ADDR_MODE_64_ENDP_PRESENT;
+
+	zb_ieee_addr_t g_ieee_addr_d = {0x00, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa};
+	ZB_MEMCPY(&req->dst_address.addr_long, &g_ieee_addr_d, sizeof(zb_ieee_addr_t));
+	req->dst_endp = 10;
+	req->req_dst_addr = zb_address_short_by_ieee(g_ieee_addr_d);
+
+	zb_zdo_bind_req(ZB_REF_FROM_BUF(buf), zb_bind_callback);
+	zb_ret_t ret = buf->u.hdr.status;
+	if (ret == RET_TABLE_FULL)
+	{
+		TRACE_MSG(TRACE_ERROR, "TABLE FULL %d", (FMT__D, ret));
+	}
+}
+
+void zb_bind_callback(zb_uint8_t param)
+{
+	zb_ret_t ret = RET_OK;
+	zb_buf_t *buf = (zb_buf_t *)ZB_BUF_FROM_REF(param);
+	zb_uint8_t *aps_body = NULL;
+
+	aps_body = ZB_BUF_BEGIN(buf);
+	ZB_MEMCPY(&ret, aps_body, sizeof(ret));
+
+	TRACE_MSG(TRACE_INFO1, "zb_bind_callback %hd", (FMT__H, ret));
+	ZB_SCHEDULE_CALLBACK(send_data_from_sensors, 1);
+	if (ret == RET_OK)
+	{
+		// bind ok
+	}
 }
 
 

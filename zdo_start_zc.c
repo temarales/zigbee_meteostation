@@ -86,11 +86,30 @@ LCD_TEXT_DISPLAY_t myLCD = {
 	};
 
 static volatile zb_int8_t sensor_period_in_sec = 8;
+static volatile char first_str[16] = {0};
+static volatile char second_str[16] = {0};
+static volatile float lcd_delay_in_sec = 0.1;
 
 static void data_indication(zb_uint8_t param) ZB_CALLBACK;
-static void init_elements(void);
 static void send_package_request(zb_uint8_t param);
 static void send_new_period(zb_uint8_t param);
+
+static void init_elements(void);
+static void show_second_str_with_delay(zb_uint8_t param);
+static void show_first_str_with_delay(zb_uint8_t param);
+
+void zb_bind_callback(zb_uint8_t param); //actually, not normally used in this version
+void zb_bind_request(zb_uint8_t param);
+
+static void show_second_str_with_delay(zb_uint8_t param)
+{
+	UB_LCD_TEXT_I2C_String(&myLCD, 0, 1, second_str);
+}
+
+static void show_first_str_with_delay(zb_uint8_t param)
+{
+	UB_LCD_TEXT_I2C_String(&myLCD, 0, 0, first_str);
+}
 
 void EXTI0_IRQHandler(void) 
 {
@@ -106,24 +125,35 @@ void EXTI1_IRQHandler(void)
 {
 	if(EXTI_GetITStatus(EXTI_Line1)!= RESET)
 	{
+		if (8 == sensor_period_in_sec)
+		{
+			sensor_period_in_sec = 16;
+			sprintf(second_str, "Set period 16s  ");
+		}
+		else
+		{
+			sensor_period_in_sec = 8;
+			sprintf(second_str, "Set period 8s  ");
+		}
 		ZB_SCHEDULE_ALARM_CANCEL(send_new_period, 0);
-		ZB_SCHEDULE_ALARM(send_new_period, 0, 0.1 * ZB_TIME_ONE_SECOND);
+		ZB_SCHEDULE_ALARM(send_new_period, 0, 4 * ZB_TIME_ONE_SECOND);
+		UB_LCD_TEXT_I2C_String(&myLCD,0,1,second_str);
 		EXTI_ClearITPendingBit(EXTI_Line1);
 	}
 }
 
 static void send_new_period(zb_uint8_t param)
 {
-	if (param==0)
+	if (0 == param)
   	{
 		ZB_GET_OUT_BUF_DELAYED(send_new_period);
         return;
   	}
 	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-	user_info_param *user_data;
-	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info_param));
-	user_data->device_address = 1; //изменить на адрес девайса
+	user_info_param_addr *user_data;
+	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info_param_addr));
 	user_data->parameter = sensor_period_in_sec;
+	user_data->device_address = 1;
 	zb_send_new_period(ZB_REF_FROM_BUF(buf));
 }
 
@@ -135,9 +165,9 @@ static void send_package_request(zb_uint8_t param)
 		return;
 	}
 	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-	user_info *user_data;
-	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info));
-	user_data->device_address = 1; //изменить на адрес девайса
+	user_info_addr *user_data;
+	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info_addr));
+	user_data->device_address = 1;
 	zb_send_package_request(ZB_REF_FROM_BUF(buf));
 }
 
@@ -152,17 +182,8 @@ static void init_elements()
 	// Init vom LC-Display
 	UB_LCD_TEXT_I2C_Init(&myLCD);
 
-	// Text auf Zeile-1 ausgeben
 	UB_LCD_TEXT_I2C_String(&myLCD,0,0,"Hello STM32F407-");
-	
-	// Text auf Zeile-2 ausgeben
 	UB_LCD_TEXT_I2C_String(&myLCD,0,1,"Mikrocontroller!");
-	UB_LCD_TEXT_I2C_Delay(2000);
-	UB_LCD_TEXT_I2C_String(&myLCD,0,1,"Hello STM32F407-");
-
-	// Clear
-	//UB_LCD_TEXT_I2C_Clear(&myLCD);
-	//UB_LCD_TEXT_I2C_Delay(2000);
 }
 
 
@@ -190,7 +211,7 @@ MAIN()
 	ZG->nwk.nib.security_level = 0;
 #endif
 	ZB_IEEE_ADDR_COPY(ZB_PIB_EXTENDED_ADDRESS(), &g_zc_addr);
-	MAC_PIB().mac_pan_id = 0x1aaa;
+	MAC_PIB().mac_pan_id = 0x000a;
 
   /* let's always be coordinator */
 	ZB_AIB().aps_designated_coordinator = 1;
@@ -226,19 +247,16 @@ void zb_zdo_startup_complete(zb_uint8_t param) ZB_CALLBACK
 
 void data_indication(zb_uint8_t param) ZB_CALLBACK
 {
-	char *ptr;
+	humidity_temperature_dp *data;
 	zb_buf_t *asdu = (zb_buf_t *)ZB_BUF_FROM_REF(param);
 
-	ZB_APS_HDR_CUT_P(asdu, ptr);
-	humidity_temperature_dp *data = (humidity_temperature_dp *)ptr;
+	ZB_APS_HDR_CUT_P(asdu, data);
 
 	if (ZB_BUF_LEN(asdu) >= sizeof(humidity_temperature_dp))
 	{
 		char first_str[16];
 		char second_str[16];
-		UB_LCD_TEXT_I2C_Delay(1000); //переделать
-		UB_LCD_TEXT_I2C_String(&myLCD,0,1,"                ");
-		UB_LCD_TEXT_I2C_Delay(1000); //переделать
+		UB_LCD_TEXT_I2C_Clear(&myLCD);
 		sprintf(second_str, "Packet received ");
 		UB_LCD_TEXT_I2C_String(&myLCD,0,1,second_str);
 		switch (data->is_data_valid){
@@ -259,5 +277,6 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 	}
 	zb_free_buf(asdu);
 }
+
 
 /*! @} */
