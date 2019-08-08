@@ -138,7 +138,7 @@ static void send_new_period(zb_uint8_t param)
 	if (0 == param)
   	{
 		ZB_GET_OUT_BUF_DELAYED(send_new_period);
-        return;
+		return;
   	}
 	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
 	user_info_param_addr *user_data;
@@ -242,7 +242,7 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 	zb_buf_t *asdu = (zb_buf_t *)ZB_BUF_FROM_REF(param);
 
 	zb_mac_mhr_t mac_hdr;
-    zb_parse_mhr(&mac_hdr, ((asdu)->buf + (asdu)->u.hdr.mac_hdr_offset));
+	zb_parse_mhr(&mac_hdr, ((asdu)->buf + (asdu)->u.hdr.mac_hdr_offset));
 	dst_short_addr = mac_hdr.src_addr.addr_short;
 
 	ZB_APS_HDR_CUT_P(asdu, data);
