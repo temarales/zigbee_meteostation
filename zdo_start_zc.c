@@ -88,36 +88,24 @@ LCD_TEXT_DISPLAY_t myLCD = {
 static volatile zb_int8_t sensor_period_in_sec = 8;
 static volatile char first_str[16] = {0};
 static volatile char second_str[16] = {0};
-static volatile float lcd_delay_in_sec = 0.1;
+static volatile zb_uint16_t dst_short_addr = 0;
 
 static void data_indication(zb_uint8_t param) ZB_CALLBACK;
 static void send_package_request(zb_uint8_t param);
 static void send_new_period(zb_uint8_t param);
 
 static void init_elements(void);
-static void show_second_str_with_delay(zb_uint8_t param);
-static void show_first_str_with_delay(zb_uint8_t param);
-
-void zb_bind_callback(zb_uint8_t param); //actually, not normally used in this version
-void zb_bind_request(zb_uint8_t param);
-
-static void show_second_str_with_delay(zb_uint8_t param)
-{
-	UB_LCD_TEXT_I2C_String(&myLCD, 0, 1, second_str);
-}
-
-static void show_first_str_with_delay(zb_uint8_t param)
-{
-	UB_LCD_TEXT_I2C_String(&myLCD, 0, 0, first_str);
-}
 
 void EXTI0_IRQHandler(void) 
 {
-	if(EXTI_GetITStatus(EXTI_Line0)!= RESET)
+	if (0 != dst_short_addr)
 	{
-		ZB_SCHEDULE_ALARM_CANCEL(send_package_request, 0);
-		ZB_SCHEDULE_ALARM(send_package_request, 0, 0.1 * ZB_TIME_ONE_SECOND);
-		EXTI_ClearITPendingBit(EXTI_Line0);
+		if(EXTI_GetITStatus(EXTI_Line0)!= RESET)
+		{
+			ZB_SCHEDULE_ALARM_CANCEL(send_package_request, 0);
+			ZB_SCHEDULE_ALARM(send_package_request, 0, 0.1 * ZB_TIME_ONE_SECOND);
+			EXTI_ClearITPendingBit(EXTI_Line0);
+		}
 	}
 }
 
@@ -125,20 +113,23 @@ void EXTI1_IRQHandler(void)
 {
 	if(EXTI_GetITStatus(EXTI_Line1)!= RESET)
 	{
-		if (8 == sensor_period_in_sec)
+		if (0 != dst_short_addr)
 		{
-			sensor_period_in_sec = 16;
-			sprintf(second_str, "Set period 16s  ");
+			if (8 == sensor_period_in_sec)
+			{
+				sensor_period_in_sec = 16;
+				sprintf(second_str, "Set period 16s  ");
+			}
+			else
+			{
+				sensor_period_in_sec = 8;
+				sprintf(second_str, "Set period 8s  ");
+			}
+			ZB_SCHEDULE_ALARM_CANCEL(send_new_period, 0);
+			ZB_SCHEDULE_ALARM(send_new_period, 0, 4 * ZB_TIME_ONE_SECOND);
+			UB_LCD_TEXT_I2C_String(&myLCD,0,1,second_str);
+			EXTI_ClearITPendingBit(EXTI_Line1);
 		}
-		else
-		{
-			sensor_period_in_sec = 8;
-			sprintf(second_str, "Set period 8s  ");
-		}
-		ZB_SCHEDULE_ALARM_CANCEL(send_new_period, 0);
-		ZB_SCHEDULE_ALARM(send_new_period, 0, 4 * ZB_TIME_ONE_SECOND);
-		UB_LCD_TEXT_I2C_String(&myLCD,0,1,second_str);
-		EXTI_ClearITPendingBit(EXTI_Line1);
 	}
 }
 
@@ -153,7 +144,7 @@ static void send_new_period(zb_uint8_t param)
 	user_info_param_addr *user_data;
 	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info_param_addr));
 	user_data->parameter = sensor_period_in_sec;
-	user_data->device_address = 1;
+	user_data->device_address = dst_short_addr;
 	zb_send_new_period(ZB_REF_FROM_BUF(buf));
 }
 
@@ -167,7 +158,7 @@ static void send_package_request(zb_uint8_t param)
 	zb_buf_t *buf = ZB_BUF_FROM_REF(param);
 	user_info_addr *user_data;
 	user_data = ZB_GET_BUF_TAIL(buf, sizeof(user_info_addr));
-	user_data->device_address = 1;
+	user_data->device_address = dst_short_addr;
 	zb_send_package_request(ZB_REF_FROM_BUF(buf));
 }
 
@@ -249,6 +240,10 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 {
 	humidity_temperature_dp *data;
 	zb_buf_t *asdu = (zb_buf_t *)ZB_BUF_FROM_REF(param);
+
+	zb_mac_mhr_t mac_hdr;
+    zb_parse_mhr(&mac_hdr, ((asdu)->buf + (asdu)->u.hdr.mac_hdr_offset));
+	dst_short_addr = mac_hdr.src_addr.addr_short;
 
 	ZB_APS_HDR_CUT_P(asdu, data);
 
