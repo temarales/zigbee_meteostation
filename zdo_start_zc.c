@@ -241,9 +241,8 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
 	humidity_temperature_dp *data;
 	zb_buf_t *asdu = (zb_buf_t *)ZB_BUF_FROM_REF(param);
 
-	zb_mac_mhr_t mac_hdr;
-	zb_parse_mhr(&mac_hdr, ((asdu)->buf + (asdu)->u.hdr.mac_hdr_offset));
-	dst_short_addr = mac_hdr.src_addr.addr_short;
+	zb_apsde_data_indication_t *ind = ZB_GET_BUF_PARAM(asdu, zb_apsde_data_indication_t);
+	dst_short_addr = ind->src_addr;
 
 	ZB_APS_HDR_CUT_P(asdu, data);
 
